@@ -27,39 +27,29 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     super.initState();
 
     // Configure zoom and pan behavior
+    // 禁用 enableSelectionZooming 避免长按时选中放大
     _zoomPanBehavior = ZoomPanBehavior(
       enablePinching: true,
       enableDoubleTapZooming: true,
       enablePanning: true,
-      enableSelectionZooming: true,
+      enableSelectionZooming: false, // 禁用选中放大，避免与十字指针冲突
       enableMouseWheelZooming: true,
       zoomMode: ZoomMode.x,
     );
 
-    // Configure trackball for better touch interaction
-    // Use longPress to avoid interfering with pan gestures
-    _trackballBehavior = TrackballBehavior(
+    // 禁用 trackball，改用 crosshair
+    _trackballBehavior = TrackballBehavior(enable: false);
+
+    // 配置十字指针 - 长按激活，可以滑动移动指针
+    _crosshairBehavior = CrosshairBehavior(
       enable: true,
-      activationMode: ActivationMode.longPress,
-      tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
+      activationMode: ActivationMode.longPress, // 长按激活
       shouldAlwaysShow: false,
-      lineType: TrackballLineType.vertical,
-      lineColor: Colors.grey.withValues(alpha: 0.5),
+      lineType: CrosshairLineType.both, // 显示水平和垂直十字线
+      lineColor: Colors.grey.withValues(alpha: 0.6),
       lineWidth: 1,
       lineDashArray: const [5, 5],
-      tooltipSettings: const InteractiveTooltip(
-        enable: true,
-        color: Color(0xFF1E1E1E),
-        textStyle: TextStyle(color: Colors.white, fontSize: 12),
-        borderColor: Colors.grey,
-        borderWidth: 1,
-        format: 'point.x : point.y',
-      ),
     );
-
-    // Disable crosshair to avoid interference with pan gestures
-    // Trackball already provides similar functionality
-    _crosshairBehavior = CrosshairBehavior(enable: false);
   }
 
   @override
