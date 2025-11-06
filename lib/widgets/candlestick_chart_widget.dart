@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:intl/intl.dart';
@@ -22,7 +23,11 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   late TrackballBehavior _trackballBehavior;
   late CrosshairBehavior _crosshairBehavior;
 
-  
+  // 十字指针相关状态
+  bool _isCrosshairVisible = false;
+  CandlestickData? _selectedData;
+
+
   @override
   void initState() {
     super.initState();
@@ -38,28 +43,77 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       zoomMode: ZoomMode.x,
     );
 
-    // 使用 trackball 实现十字指针效果
+    // 使用 trackball 提供数据点定位
     _trackballBehavior = TrackballBehavior(
       enable: true,
       activationMode: ActivationMode.longPress,
-      tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
+      tooltipDisplayMode: TrackballDisplayMode.none,
       shouldAlwaysShow: false,
-      lineType: TrackballLineType.vertical, // 只显示垂直线，避免遮挡数据
-      lineColor: Colors.grey.withValues(alpha: 0.6),
-      lineWidth: 1,
-      lineDashArray: const [5, 5],
-      tooltipSettings: const InteractiveTooltip(
-        enable: true,
-        color: Color(0xFF1E1E1E),
-        textStyle: TextStyle(color: Colors.white, fontSize: 11),
-        borderColor: Colors.grey,
-        borderWidth: 1,
-        format: 'O: point.open\nH: point.high\nL: point.low\nC: point.close',
-      ),
+      lineType: TrackballLineType.none, // 不显示线，只用于数据定位
+      lineColor: Colors.transparent,
     );
 
-    // 禁用 crosshair
-    _crosshairBehavior = CrosshairBehavior(enable: false);
+    // 使用 crosshair 显示完整的十字线（横竖都有）
+    _crosshairBehavior = CrosshairBehavior(
+      enable: true,
+      activationMode: ActivationMode.longPress,
+      shouldAlwaysShow: false,
+      lineType: CrosshairLineType.both, // 十字线
+      lineColor: Colors.grey.withValues(alpha: 0.8),
+      lineWidth: 2,
+      lineDashArray: const [5, 5],
+    );
+  }
+
+  // 防抖定时器
+  Timer? _debounceTimer;
+
+  // 处理 trackball 位置变化
+  void _onTrackballPositionChanging(TrackballArgs args) {
+    // 检查是否有有效的数据点信息
+    final chartPointInfo = args.chartPointInfo;
+
+    // 尝试获取数据点索引
+    int? dataPointIndex;
+    try {
+      dataPointIndex = chartPointInfo.dataPointIndex;
+    } catch (e) {
+      dataPointIndex = null;
+    }
+
+    // 取消之前的定时器
+    _debounceTimer?.cancel();
+
+    // 使用防抖机制，减少闪动
+    _debounceTimer = Timer(const Duration(milliseconds: 16), () {
+      if (!mounted) return;
+
+      if (dataPointIndex != null && dataPointIndex >= 0 && dataPointIndex < widget.data.length) {
+        // Trackball 激活
+        final newData = widget.data[dataPointIndex];
+
+        if (!_isCrosshairVisible || newData != _selectedData) {
+          setState(() {
+            _isCrosshairVisible = true;
+            _selectedData = newData;
+          });
+        }
+      } else {
+        // Trackball 隐藏
+        if (_isCrosshairVisible) {
+          setState(() {
+            _isCrosshairVisible = false;
+            _selectedData = null;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -77,7 +131,19 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           // Main Chart
           Expanded(
             flex: 3,
-            child: _buildCandlestickChart(),
+            child: Stack(
+              children: [
+                _buildCandlestickChart(),
+                // 固定在左上角的信息面板（带淡入淡出动画）
+                AnimatedOpacity(
+                  opacity: (_isCrosshairVisible && _selectedData != null) ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: _isCrosshairVisible && _selectedData != null
+                      ? _buildCrosshairInfoPanel()
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
 
           // Volume Chart
@@ -181,6 +247,10 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       zoomPanBehavior: _zoomPanBehavior,
       trackballBehavior: _trackballBehavior,
       crosshairBehavior: _crosshairBehavior,
+      onTrackballPositionChanging: _onTrackballPositionChanging,
+      onCrosshairPositionChanging: (CrosshairRenderArgs args) {
+        // Crosshair 和 Trackball 联动
+      },
 
       // Primary X Axis (DateTime)
       primaryXAxis: DateTimeAxis(
@@ -219,24 +289,17 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           // Styling
           bearColor: const Color(0xFFEF5350), // Red for bearish
           bullColor: const Color(0xFF26A69A), // Green for bullish
-          // Enable tooltip
-          enableTooltip: true,
+          // 禁用 series tooltip，只使用左上角固定面板
+          enableTooltip: false,
 
           // Smooth rendering
           animationDuration: 1000,
         ),
       ],
 
-      // Tooltip behavior - activated on tap
+      // 禁用 tooltip behavior
       tooltipBehavior: TooltipBehavior(
-        enable: true,
-        activationMode: ActivationMode.singleTap,
-        format:
-            'Date: point.x\nO: point.open\nH: point.high\nL: point.low\nC: point.close',
-        color: const Color(0xFF1E1E1E),
-        textStyle: const TextStyle(color: Colors.white, fontSize: 11),
-        borderColor: Colors.grey,
-        borderWidth: 1,
+        enable: false,
       ),
     );
   }
@@ -275,6 +338,105 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           spacing: 0.1,
         ),
       ],
+    );
+  }
+
+  // 构建固定在左上角的信息面板
+  Widget _buildCrosshairInfoPanel() {
+    if (_selectedData == null) return const SizedBox.shrink();
+
+    final dateFormat = DateFormat('MM/dd HH:mm');
+    final isPositive = _selectedData!.close >= _selectedData!.open;
+    final change = _selectedData!.close - _selectedData!.open;
+    final changePercent = (change / _selectedData!.open) * 100;
+
+    return Positioned(
+      top: 6,
+      left: 6,
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E).withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 时间
+              Text(
+                dateFormat.format(_selectedData!.date),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 3),
+
+              // OHLC 数据
+              _buildInfoRow('O', _selectedData!.open, Colors.grey),
+              _buildInfoRow('H', _selectedData!.high, Colors.green),
+              _buildInfoRow('L', _selectedData!.low, Colors.red),
+              _buildInfoRow('C', _selectedData!.close, isPositive ? Colors.green : Colors.red),
+
+              // 涨跌幅
+              const SizedBox(height: 2),
+              Container(
+                height: 0.5,
+                width: 80,
+                color: Colors.grey.withValues(alpha: 0.3),
+              ),
+              const SizedBox(height: 2),
+
+              Text(
+                '${isPositive ? '+' : ''}${changePercent.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  color: isPositive ? Colors.green : Colors.red,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 构建信息行
+  Widget _buildInfoRow(String label, double value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label ',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 8,
+            ),
+          ),
+          Text(
+            '\$${value.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: color,
+              fontSize: 8,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
