@@ -37,9 +37,10 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     );
 
     // Configure trackball for better touch interaction
+    // Use longPress to avoid interfering with pan gestures
     _trackballBehavior = TrackballBehavior(
       enable: true,
-      activationMode: ActivationMode.singleTap,
+      activationMode: ActivationMode.longPress,
       tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
       shouldAlwaysShow: false,
       lineType: TrackballLineType.vertical,
@@ -56,15 +57,9 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       ),
     );
 
-    // Configure crosshair
-    _crosshairBehavior = CrosshairBehavior(
-      enable: true,
-      activationMode: ActivationMode.longPress,
-      lineType: CrosshairLineType.both,
-      lineColor: Colors.grey.withValues(alpha: 0.5),
-      lineWidth: 1,
-      lineDashArray: const [5, 5],
-    );
+    // Disable crosshair to avoid interference with pan gestures
+    // Trackball already provides similar functionality
+    _crosshairBehavior = CrosshairBehavior(enable: false);
   }
 
   @override
@@ -82,14 +77,14 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           // Main Chart
           Expanded(
             flex: 3,
-            child: _buildCandlestickChart(),
+            child: GestureDetector(
+              onHorizontalDragStart: (details) => {},
+              child: _buildCandlestickChart(),
+            ),
           ),
 
           // Volume Chart
-          Expanded(
-            flex: 1,
-            child: _buildVolumeChart(),
-          ),
+          Expanded(flex: 1, child: _buildVolumeChart()),
         ],
       ),
     );
@@ -197,10 +192,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           width: 1,
         ),
         axisLine: const AxisLine(width: 0),
-        labelStyle: const TextStyle(
-          color: Colors.grey,
-          fontSize: 10,
-        ),
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
         dateFormat: DateFormat('MM/dd HH:mm'),
         intervalType: DateTimeIntervalType.auto,
       ),
@@ -213,10 +205,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           width: 1,
         ),
         axisLine: const AxisLine(width: 0),
-        labelStyle: const TextStyle(
-          color: Colors.grey,
-          fontSize: 10,
-        ),
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
         numberFormat: NumberFormat.currency(symbol: '\$', decimalDigits: 2),
       ),
 
@@ -233,7 +222,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           // Styling
           bearColor: const Color(0xFFEF5350), // Red for bearish
           bullColor: const Color(0xFF26A69A), // Green for bullish
-
           // Enable tooltip
           enableTooltip: true,
 
@@ -242,10 +230,12 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
         ),
       ],
 
-      // Tooltip behavior
+      // Tooltip behavior - activated on tap
       tooltipBehavior: TooltipBehavior(
         enable: true,
-        format: 'Date: point.x\nO: point.open\nH: point.high\nL: point.low\nC: point.close',
+        activationMode: ActivationMode.singleTap,
+        format:
+            'Date: point.x\nO: point.open\nH: point.high\nL: point.low\nC: point.close',
         color: const Color(0xFF1E1E1E),
         textStyle: const TextStyle(color: Colors.white, fontSize: 11),
         borderColor: Colors.grey,
@@ -261,19 +251,14 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
 
       // Primary X Axis (DateTime)
-      primaryXAxis: DateTimeAxis(
-        isVisible: false,
-      ),
+      primaryXAxis: DateTimeAxis(isVisible: false),
 
       // Primary Y Axis (Volume)
       primaryYAxis: NumericAxis(
         opposedPosition: true,
         majorGridLines: const MajorGridLines(width: 0),
         axisLine: const AxisLine(width: 0),
-        labelStyle: const TextStyle(
-          color: Colors.grey,
-          fontSize: 10,
-        ),
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
         numberFormat: NumberFormat.compact(),
       ),
 
@@ -285,10 +270,9 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           yValueMapper: (CandlestickData data, _) => data.volume,
 
           // Color based on bullish/bearish
-          pointColorMapper: (CandlestickData data, _) =>
-              data.isBullish
-                  ? const Color(0xFF26A69A).withValues(alpha: 0.5)
-                  : const Color(0xFFEF5350).withValues(alpha: 0.5),
+          pointColorMapper: (CandlestickData data, _) => data.isBullish
+              ? const Color(0xFF26A69A).withValues(alpha: 0.5)
+              : const Color(0xFFEF5350).withValues(alpha: 0.5),
 
           borderRadius: BorderRadius.circular(2),
           spacing: 0.1,

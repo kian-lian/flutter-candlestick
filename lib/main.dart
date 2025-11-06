@@ -132,8 +132,19 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
           ],
         ),
         body: TabBarView(
+          controller: _tabController,
           children: [
-            Column(
+            _buildChartView(),
+            _buildChartView(),
+            _buildChartView(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChartView() {
+    return Column(
               children: [
                 // Timeframe selector
                 Container(
@@ -237,21 +248,15 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
                       ),
                       const SizedBox(height: 8),
                       _buildControlItem('Pinch', 'Zoom in/out'),
-                      _buildControlItem('Pan', 'Move chart left/right'),
-                      _buildControlItem('Tap', 'Show detailed data'),
-                      _buildControlItem('Long press', 'Show crosshair'),
+                      _buildControlItem('Swipe', 'Move chart left/right'),
+                      _buildControlItem('Tap', 'Show OHLC tooltip'),
+                      _buildControlItem('Long press', 'Show trackball'),
                       _buildControlItem('Double tap', 'Quick zoom'),
                     ],
                   ),
                 ),
               ],
-            ),
-            Container(),
-            Container(),
-          ],
-        ),
-      ),
-    );
+            );
   }
 
   Widget _buildControlItem(String action, String description) {
