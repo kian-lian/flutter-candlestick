@@ -22,6 +22,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   late TrackballBehavior _trackballBehavior;
   late CrosshairBehavior _crosshairBehavior;
 
+  
   @override
   void initState() {
     super.initState();
@@ -37,19 +38,28 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       zoomMode: ZoomMode.x,
     );
 
-    // 禁用 trackball，改用 crosshair
-    _trackballBehavior = TrackballBehavior(enable: false);
-
-    // 配置十字指针 - 长按激活，可以滑动移动指针
-    _crosshairBehavior = CrosshairBehavior(
+    // 使用 trackball 实现十字指针效果
+    _trackballBehavior = TrackballBehavior(
       enable: true,
-      activationMode: ActivationMode.longPress, // 长按激活
+      activationMode: ActivationMode.longPress,
+      tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
       shouldAlwaysShow: false,
-      lineType: CrosshairLineType.both, // 显示水平和垂直十字线
+      lineType: TrackballLineType.vertical, // 只显示垂直线，避免遮挡数据
       lineColor: Colors.grey.withValues(alpha: 0.6),
       lineWidth: 1,
       lineDashArray: const [5, 5],
+      tooltipSettings: const InteractiveTooltip(
+        enable: true,
+        color: Color(0xFF1E1E1E),
+        textStyle: TextStyle(color: Colors.white, fontSize: 11),
+        borderColor: Colors.grey,
+        borderWidth: 1,
+        format: 'O: point.open\nH: point.high\nL: point.low\nC: point.close',
+      ),
     );
+
+    // 禁用 crosshair
+    _crosshairBehavior = CrosshairBehavior(enable: false);
   }
 
   @override
@@ -67,10 +77,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           // Main Chart
           Expanded(
             flex: 3,
-            child: GestureDetector(
-              onHorizontalDragStart: (details) => {},
-              child: _buildCandlestickChart(),
-            ),
+            child: _buildCandlestickChart(),
           ),
 
           // Volume Chart

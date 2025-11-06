@@ -250,7 +250,7 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
                       _buildControlItem('Pinch', 'Zoom in/out'),
                       _buildControlItem('Swipe', 'Move chart left/right'),
                       _buildControlItem('Tap', 'Show OHLC tooltip'),
-                      _buildControlItem('Long press', 'Show crosshair & drag to move'),
+                      _buildControlItem('Long press', 'Show crosshair with OHLC info'),
                       _buildControlItem('Double tap', 'Quick zoom'),
                     ],
                   ),
