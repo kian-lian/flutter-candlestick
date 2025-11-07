@@ -1,5 +1,6 @@
 import 'dart:math';
 import '../models/candlestick_data.dart';
+import '../models/timeframe.dart';
 
 class SampleDataProvider {
   static final Random _random = Random();
@@ -52,33 +53,41 @@ class SampleDataProvider {
   }
 
   /// Generates Bitcoin-like candlestick data
-  static List<CandlestickData> generateBitcoinData({int count = 100}) {
+  static List<CandlestickData> generateBitcoinData({
+    int? count,
+    Timeframe timeframe = Timeframe.h1,
+  }) {
     return generateCandlestickData(
-      count: count,
+      count: count ?? timeframe.defaultDataCount,
       startPrice: 45000 + _random.nextDouble() * 5000, // BTC price range
-      interval: const Duration(hours: 1),
+      interval: timeframe.duration,
     );
   }
 
   /// Generates Ethereum-like candlestick data
-  static List<CandlestickData> generateEthereumData({int count = 100}) {
+  static List<CandlestickData> generateEthereumData({
+    int? count,
+    Timeframe timeframe = Timeframe.h1,
+  }) {
     return generateCandlestickData(
-      count: count,
+      count: count ?? timeframe.defaultDataCount,
       startPrice: 2500 + _random.nextDouble() * 500, // ETH price range
-      interval: const Duration(hours: 1),
+      interval: timeframe.duration,
     );
   }
 
   /// Generates trending upward data
   static List<CandlestickData> generateBullishData({
-    int count = 100,
+    int? count,
     double startPrice = 45000.0,
+    Timeframe timeframe = Timeframe.h1,
   }) {
     final data = <CandlestickData>[];
-    DateTime currentTime = DateTime.now().subtract(const Duration(hours: 1) * count);
+    final dataCount = count ?? timeframe.defaultDataCount;
+    DateTime currentTime = DateTime.now().subtract(timeframe.duration * dataCount);
     double currentPrice = startPrice;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < dataCount; i++) {
       final volatility = currentPrice * 0.015;
       // Add bullish bias
       final trend = (_random.nextDouble() - 0.3) * volatility;
@@ -102,7 +111,7 @@ class SampleDataProvider {
         volume: volume,
       ));
 
-      currentTime = currentTime.add(const Duration(hours: 1));
+      currentTime = currentTime.add(timeframe.duration);
       currentPrice = close;
     }
 
@@ -111,14 +120,16 @@ class SampleDataProvider {
 
   /// Generates trending downward data
   static List<CandlestickData> generateBearishData({
-    int count = 100,
+    int? count,
     double startPrice = 45000.0,
+    Timeframe timeframe = Timeframe.h1,
   }) {
     final data = <CandlestickData>[];
-    DateTime currentTime = DateTime.now().subtract(const Duration(hours: 1) * count);
+    final dataCount = count ?? timeframe.defaultDataCount;
+    DateTime currentTime = DateTime.now().subtract(timeframe.duration * dataCount);
     double currentPrice = startPrice;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < dataCount; i++) {
       final volatility = currentPrice * 0.015;
       // Add bearish bias
       final trend = (_random.nextDouble() - 0.7) * volatility;
@@ -142,7 +153,7 @@ class SampleDataProvider {
         volume: volume,
       ));
 
-      currentTime = currentTime.add(const Duration(hours: 1));
+      currentTime = currentTime.add(timeframe.duration);
       currentPrice = close;
     }
 
@@ -151,16 +162,18 @@ class SampleDataProvider {
 
   /// Generates sideways/ranging market data
   static List<CandlestickData> generateRangingData({
-    int count = 100,
+    int? count,
     double startPrice = 45000.0,
     double rangePercent = 0.05, // 5% range
+    Timeframe timeframe = Timeframe.h1,
   }) {
     final data = <CandlestickData>[];
-    DateTime currentTime = DateTime.now().subtract(const Duration(hours: 1) * count);
+    final dataCount = count ?? timeframe.defaultDataCount;
+    DateTime currentTime = DateTime.now().subtract(timeframe.duration * dataCount);
     final centerPrice = startPrice;
     final maxRange = startPrice * rangePercent;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < dataCount; i++) {
       // Keep price within range
       final currentPrice = centerPrice + (_random.nextDouble() - 0.5) * maxRange * 2;
       final volatility = currentPrice * 0.01;
@@ -185,7 +198,7 @@ class SampleDataProvider {
         volume: volume,
       ));
 
-      currentTime = currentTime.add(const Duration(hours: 1));
+      currentTime = currentTime.add(timeframe.duration);
     }
 
     return data;

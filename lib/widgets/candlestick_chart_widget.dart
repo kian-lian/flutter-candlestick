@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:intl/intl.dart';
 import '../models/candlestick_data.dart';
+import '../models/timeframe.dart';
 
 class CandlestickChartWidget extends StatefulWidget {
   final List<CandlestickData> data;
   final String title;
+  final Timeframe timeframe;
 
   const CandlestickChartWidget({
     super.key,
     required this.data,
     this.title = 'BTC/USDT',
+    this.timeframe = Timeframe.h1,
   });
 
   @override
@@ -20,7 +23,7 @@ class CandlestickChartWidget extends StatefulWidget {
 
 class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   // —— 最大放大度（最小可见窗口比例）
-  static const double _minXFactor = 0.2;
+  static const double _minXFactor = 0.1;
 
   // —— 单击/长按判定阈值
   static const int _longPressMs = 350; // 长按判定时长
@@ -32,18 +35,8 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   late final ZoomPanBehavior _volZoom;
 
   // X 轴（必须持有轴实例，便于编程式缩放）
-  final DateTimeAxis _priceXAxis = DateTimeAxis(
-    name: 'x',
-    isVisible: false,
-    majorGridLines: MajorGridLines(
-      color: Colors.grey /*.withOpacity(0.1)*/ .withValues(alpha: 0.1),
-      width: 1,
-    ),
-    axisLine: const AxisLine(width: 0),
-    labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
-    dateFormat: DateFormat('MM/dd HH:mm'),
-    intervalType: DateTimeIntervalType.auto,
-  );
+  late final DateTimeAxis _priceXAxis;
+  late final DateTimeAxis _volXAxis;
 
   // ===== 主图：Y 轴（横向网格线） =====
   final NumericAxis _priceYAxis = NumericAxis(
@@ -65,20 +58,11 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     numberFormat: NumberFormat.currency(symbol: '\$', decimalDigits: 2),
   );
 
-  final DateTimeAxis _volXAxis = DateTimeAxis(
-    name: 'x',
-    isVisible: true,
-    dateFormat: DateFormat('MM/dd HH:mm'),
-    intervalType: DateTimeIntervalType.auto,
-    majorGridLines: const MajorGridLines(width: 0), // ← 关闭竖向主网格线
-    minorGridLines: const MinorGridLines(width: 0), // ← 保险：关闭竖向次网格线
-    majorTickLines: const MajorTickLines(width: 0, size: 0),
-    axisLine: const AxisLine(width: 0),
-  );
-
   // 十字/轨迹
   late final TrackballBehavior _trackballBehavior;
   late final CrosshairBehavior _crosshairBehavior;
+
+  static const double _animMs = 200.0;
 
   // 递归保护（避免 A 触发 B、B 又触发 A）
   bool _syncingFromPrice = false;
@@ -95,6 +79,31 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   @override
   void initState() {
     super.initState();
+
+    // 初始化 X 轴，使用 widget.timeframe 的日期格式
+    _priceXAxis = DateTimeAxis(
+      name: 'x',
+      isVisible: false,
+      majorGridLines: MajorGridLines(
+        color: Colors.grey.withValues(alpha: 0.1),
+        width: 1,
+      ),
+      axisLine: const AxisLine(width: 0),
+      labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+      dateFormat: DateFormat(widget.timeframe.dateFormat),
+      intervalType: DateTimeIntervalType.auto,
+    );
+
+    _volXAxis = DateTimeAxis(
+      name: 'x',
+      isVisible: true,
+      dateFormat: DateFormat(widget.timeframe.dateFormat),
+      intervalType: DateTimeIntervalType.auto,
+      majorGridLines: const MajorGridLines(width: 0),
+      minorGridLines: const MinorGridLines(width: 0),
+      majorTickLines: const MajorTickLines(width: 0, size: 0),
+      axisLine: const AxisLine(width: 0),
+    );
 
     _priceZoom = ZoomPanBehavior(
       enablePinching: true,
@@ -144,6 +153,26 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       lineWidth: 2,
       lineDashArray: const [5, 5],
     );
+
+    _applyInitialViewByLastN(50);
+  }
+
+  // 计算 factor/position 并应用到两个图表
+  void _applyInitialViewByLastN(int lastN) {
+    if (widget.data.isEmpty) return;
+    final int len = widget.data.length;
+    final double factor = (lastN / len).clamp(0.0, 1.0); // 初始缩放比例
+    final double position = (1.0 - factor).clamp(0.0, 1.0); // 把窗口贴到最右（最新）
+
+    // 若你限制了最大放大度（_minXFactor），要确保初始 factor ≥ _minXFactor
+    // 否则会被限制住看不到那么“窄”的窗口
+    final double appliedFactor = factor.clamp(_minXFactor, 1.0);
+
+    // 等第一帧布局完再调用（轴/行为就绪）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _priceZoom.zoomToSingleAxis(_priceXAxis, position, appliedFactor);
+      _volZoom.zoomToSingleAxis(_volXAxis, position, appliedFactor);
+    });
   }
 
   @override
@@ -356,7 +385,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           bullColor: const Color(0xFF26A69A),
           enableSolidCandles: true, // 启用实心蜡烛
           enableTooltip: false,
-          animationDuration: 800,
+          animationDuration: _animMs,
           spacing: 0.01,
           width: 0.9,
         ),
@@ -393,6 +422,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           borderRadius: BorderRadius.circular(2),
           spacing: 0.01,
           width: 0.9,
+          animationDuration: _animMs,
         ),
       ],
     );

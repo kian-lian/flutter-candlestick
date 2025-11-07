@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'widgets/candlestick_chart_widget.dart';
 import 'data/sample_data_provider.dart';
 import 'models/candlestick_data.dart';
+import 'models/timeframe.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,9 +53,7 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
   late TabController _tabController;
   List<CandlestickData> _currentData = [];
   String _currentPair = 'BTC/USDT';
-
-  final List<String> _timeframes = ['1H', '4H', '1D', '1W'];
-  int _selectedTimeframe = 0;
+  Timeframe _selectedTimeframe = Timeframe.m5;
 
   @override
   void initState() {
@@ -71,7 +70,9 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
 
   void _loadData() {
     setState(() {
-      _currentData = SampleDataProvider.generateBitcoinData(count: 100);
+      _currentData = SampleDataProvider.generateBitcoinData(
+        timeframe: _selectedTimeframe,
+      );
     });
   }
 
@@ -81,19 +82,21 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
         case 0:
           _currentPair = 'BTC/USDT';
           _currentData = SampleDataProvider.generateBullishData(
-            count: 100,
             startPrice: 45000,
+            timeframe: _selectedTimeframe,
           );
           break;
         case 1:
           _currentPair = 'ETH/USDT';
-          _currentData = SampleDataProvider.generateEthereumData(count: 100);
+          _currentData = SampleDataProvider.generateEthereumData(
+            timeframe: _selectedTimeframe,
+          );
           break;
         case 2:
           _currentPair = 'BTC/USDT';
           _currentData = SampleDataProvider.generateBearishData(
-            count: 100,
             startPrice: 48000,
+            timeframe: _selectedTimeframe,
           );
           break;
       }
@@ -165,17 +168,20 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: List.generate(_timeframes.length, (index) {
-                      final isSelected = _selectedTimeframe == index;
+                    children: Timeframe.values.map((timeframe) {
+                      final isSelected = _selectedTimeframe == timeframe;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
-                          label: Text(_timeframes[index]),
+                          label: Text(timeframe.label),
                           selected: isSelected,
                           onSelected: (selected) {
-                            setState(() {
-                              _selectedTimeframe = index;
-                            });
+                            if (selected) {
+                              setState(() {
+                                _selectedTimeframe = timeframe;
+                              });
+                              _changeMarketTrend(_tabController.index);
+                            }
                           },
                           selectedColor: const Color(0xFF26A69A),
                           backgroundColor: const Color(0xFF2A2A2A),
@@ -187,7 +193,7 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
                           ),
                         ),
                       );
-                    }),
+                    }).toList(),
                   ),
                 ),
               ),
@@ -206,6 +212,7 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
                 : CandlestickChartWidget(
                     data: _currentData,
                     title: _currentPair,
+                    timeframe: _selectedTimeframe,
                   ),
           ),
         ),
