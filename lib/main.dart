@@ -133,11 +133,7 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
         ),
         body: TabBarView(
           controller: _tabController,
-          children: [
-            _buildChartView(),
-            _buildChartView(),
-            _buildChartView(),
-          ],
+          children: [_buildChartView(), _buildChartView(), _buildChartView()],
         ),
       ),
     );
@@ -145,117 +141,108 @@ class _CandlestickChartPageState extends State<CandlestickChartPage>
 
   Widget _buildChartView() {
     return Column(
-              children: [
-                // Timeframe selector
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Colors.grey.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                  ),
+      children: [
+        // Timeframe selector
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.grey.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Text(
+                'Timeframe:',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: [
-                      const Text(
-                        'Timeframe:',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: List.generate(_timeframes.length, (
-                              index,
-                            ) {
-                              final isSelected = _selectedTimeframe == index;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: Text(_timeframes[index]),
-                                  selected: isSelected,
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      _selectedTimeframe = index;
-                                    });
-                                  },
-                                  selectedColor: const Color(0xFF26A69A),
-                                  backgroundColor: const Color(0xFF2A2A2A),
-                                  labelStyle: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey,
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                              );
-                            }),
+                    children: List.generate(_timeframes.length, (index) {
+                      final isSelected = _selectedTimeframe == index;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(_timeframes[index]),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedTimeframe = index;
+                            });
+                          },
+                          selectedColor: const Color(0xFF26A69A),
+                          backgroundColor: const Color(0xFF2A2A2A),
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.grey,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                    }),
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
 
-                // Chart
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: _currentData.isEmpty
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF26A69A),
-                            ),
-                          )
-                        : CandlestickChartWidget(
-                            data: _currentData,
-                            title: _currentPair,
-                          ),
+        // Chart
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: _currentData.isEmpty
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF26A69A)),
+                  )
+                : CandlestickChartWidget(
+                    data: _currentData,
+                    title: _currentPair,
                   ),
-                ),
+          ),
+        ),
 
-                // Chart controls info
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    border: Border(
-                      top: BorderSide(
-                        color: Colors.grey.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Chart Controls:',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildControlItem('Pinch', 'Zoom in/out'),
-                      _buildControlItem('Swipe', 'Move chart left/right'),
-                      _buildControlItem('Long press', 'Show crosshair & data panel'),
-                      _buildControlItem('Double tap', 'Quick zoom'),
-                    ],
-                  ),
+        // Chart controls info
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            border: Border(
+              top: BorderSide(
+                color: Colors.grey.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Chart Controls:',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
-              ],
-            );
+              ),
+              const SizedBox(height: 8),
+              _buildControlItem('Pinch', 'Zoom in/out'),
+              _buildControlItem('Swipe', 'Move chart left/right'),
+              _buildControlItem('Long press', 'Show crosshair & data panel'),
+              _buildControlItem('Double tap', 'Quick zoom'),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildControlItem(String action, String description) {
