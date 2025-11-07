@@ -131,18 +131,42 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           // Main Chart
           Expanded(
             flex: 3,
-            child: Stack(
-              children: [
-                _buildCandlestickChart(),
-                // 固定在左上角的信息面板（带淡入淡出动画）
-                AnimatedOpacity(
-                  opacity: (_isCrosshairVisible && _selectedData != null) ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 150),
-                  child: _isCrosshairVisible && _selectedData != null
-                      ? _buildCrosshairInfoPanel()
-                      : const SizedBox.shrink(),
-                ),
-              ],
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerUp: (event) {
+                // 手指离开屏幕时，延迟隐藏信息面板
+                // 使用延迟避免与图表内部事件冲突
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted && _isCrosshairVisible) {
+                    setState(() {
+                      _isCrosshairVisible = false;
+                      _selectedData = null;
+                    });
+                  }
+                });
+              },
+              onPointerCancel: (event) {
+                // 手势取消时也隐藏
+                if (mounted && _isCrosshairVisible) {
+                  setState(() {
+                    _isCrosshairVisible = false;
+                    _selectedData = null;
+                  });
+                }
+              },
+              child: Stack(
+                children: [
+                  _buildCandlestickChart(),
+                  // 固定在左上角的信息面板（带淡入淡出动画）
+                  AnimatedOpacity(
+                    opacity: (_isCrosshairVisible && _selectedData != null) ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: _isCrosshairVisible && _selectedData != null
+                        ? _buildCrosshairInfoPanel()
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
             ),
           ),
 
