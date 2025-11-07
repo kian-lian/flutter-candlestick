@@ -19,41 +19,83 @@ class CandlestickChartWidget extends StatefulWidget {
 }
 
 class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
-  late ZoomPanBehavior _zoomPanBehavior;
-  late TrackballBehavior _trackballBehavior;
-  late CrosshairBehavior _crosshairBehavior;
+  // 缩放行为（主图 / 成交量图）
+  late final ZoomPanBehavior _priceZoom;
+  late final ZoomPanBehavior _volZoom;
+
+  // X 轴（必须持有轴实例，便于编程式缩放）
+  final DateTimeAxis _priceXAxis = DateTimeAxis(
+    name: 'x',
+    majorGridLines: MajorGridLines(
+      color: Colors.grey.withValues(alpha: 0.1),
+      width: 1,
+    ),
+    axisLine: const AxisLine(width: 0),
+    labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+    dateFormat: DateFormat('MM/dd HH:mm'),
+    intervalType: DateTimeIntervalType.auto,
+    // 可选：避免缩放后两图刻度不一致
+    // enableAutoIntervalOnZooming: false,
+  );
+
+  final DateTimeAxis _volXAxis = DateTimeAxis(
+    name: 'x',
+    isVisible: false, // 底部轴不显示，但仍用于同步
+    dateFormat: DateFormat('MM/dd HH:mm'),
+    intervalType: DateTimeIntervalType.auto,
+    // enableAutoIntervalOnZooming: false,
+  );
+
+  // 十字/轨迹
+  late final TrackballBehavior _trackballBehavior;
+  late final CrosshairBehavior _crosshairBehavior;
+
+  // 递归保护（避免 A 触发 B、B 又触发 A）
+  bool _syncingFromPrice = false;
+  bool _syncingFromVol = false;
+
+  // 防抖（用于 Trackball -> 信息面板）
+  Timer? _debounceTimer;
 
   // 十字指针相关状态
   bool _isCrosshairVisible = false;
   CandlestickData? _selectedData;
-
+  static const double _minXFactor = 0.2; // 5% 窗口
 
   @override
   void initState() {
     super.initState();
 
-    // Configure zoom and pan behavior
-    // 禁用 enableSelectionZooming 避免长按时选中放大
-    _zoomPanBehavior = ZoomPanBehavior(
+    // 统一定义一个“最小可见比例”（最大放大度）
+
+    _priceZoom = ZoomPanBehavior(
       enablePinching: true,
       enableDoubleTapZooming: true,
       enablePanning: true,
-      enableSelectionZooming: false, // 禁用选中放大，避免与十字指针冲突
+      enableSelectionZooming: false,
       enableMouseWheelZooming: true,
       zoomMode: ZoomMode.x,
+      maximumZoomLevel: _minXFactor,
     );
 
-    // 使用 trackball 提供数据点定位
+    _volZoom = ZoomPanBehavior(
+      enablePinching: true,
+      enableDoubleTapZooming: true,
+      enablePanning: true,
+      enableSelectionZooming: false,
+      enableMouseWheelZooming: true,
+      zoomMode: ZoomMode.x,
+      maximumZoomLevel: _minXFactor,
+    );
     _trackballBehavior = TrackballBehavior(
       enable: true,
       activationMode: ActivationMode.longPress,
       tooltipDisplayMode: TrackballDisplayMode.none,
       shouldAlwaysShow: false,
-      lineType: TrackballLineType.none, // 不显示线，只用于数据定位
+      lineType: TrackballLineType.none, // 不显示线，只用于定位数据点
       lineColor: Colors.transparent,
     );
 
-    // 使用 crosshair 显示完整的十字线（横竖都有）
     _crosshairBehavior = CrosshairBehavior(
       enable: true,
       activationMode: ActivationMode.longPress,
@@ -65,33 +107,63 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     );
   }
 
-  // 防抖定时器
-  Timer? _debounceTimer;
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
 
-  // 处理 trackball 位置变化
+  // —— 缩放同步：主图 -> 成交量图
+  void _onPriceZooming(ZoomPanArgs args) {
+    if (_syncingFromVol) return;
+    // 只处理 X 轴事件
+    if (args.axis?.name != 'x') return;
+
+    _syncingFromPrice = true;
+
+    // 关键：把同步过去的 factor 限制在 [_minXFactor, 1.0]
+    final double factor = args.currentZoomFactor
+        .clamp(_minXFactor, 1.0)
+        .toDouble();
+
+    // 将当前的缩放位置/比例同步到 Volume 图
+    _volZoom.zoomToSingleAxis(_volXAxis, args.currentZoomPosition, factor);
+    _syncingFromPrice = false;
+  }
+
+  // —— 缩放同步：成交量图 -> 主图
+  void _onVolZooming(ZoomPanArgs args) {
+    if (_syncingFromPrice) return;
+    if (args.axis?.name != 'x') return;
+
+    _syncingFromVol = true;
+
+    final double factor = args.currentZoomFactor
+        .clamp(_minXFactor, 1.0)
+        .toDouble();
+    _priceZoom.zoomToSingleAxis(_priceXAxis, args.currentZoomPosition, factor);
+    _syncingFromVol = false;
+  }
+
+  // —— Trackball 位置变化：驱动左上角信息面板
   void _onTrackballPositionChanging(TrackballArgs args) {
-    // 检查是否有有效的数据点信息
-    final chartPointInfo = args.chartPointInfo;
+    final info = args.chartPointInfo;
 
-    // 尝试获取数据点索引
     int? dataPointIndex;
     try {
-      dataPointIndex = chartPointInfo.dataPointIndex;
-    } catch (e) {
+      dataPointIndex = info.dataPointIndex;
+    } catch (_) {
       dataPointIndex = null;
     }
 
-    // 取消之前的定时器
     _debounceTimer?.cancel();
-
-    // 使用防抖机制，减少闪动
     _debounceTimer = Timer(const Duration(milliseconds: 16), () {
       if (!mounted) return;
 
-      if (dataPointIndex != null && dataPointIndex >= 0 && dataPointIndex < widget.data.length) {
-        // Trackball 激活
+      if (dataPointIndex != null &&
+          dataPointIndex >= 0 &&
+          dataPointIndex < widget.data.length) {
         final newData = widget.data[dataPointIndex];
-
         if (!_isCrosshairVisible || newData != _selectedData) {
           setState(() {
             _isCrosshairVisible = true;
@@ -99,7 +171,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           });
         }
       } else {
-        // Trackball 隐藏
         if (_isCrosshairVisible) {
           setState(() {
             _isCrosshairVisible = false;
@@ -111,12 +182,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   }
 
   @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
@@ -125,17 +190,15 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       ),
       child: Column(
         children: [
-          // Chart Header
           _buildChartHeader(),
 
-          // Main Chart
+          // —— 主图（K 线）
           Expanded(
             flex: 3,
             child: Listener(
               behavior: HitTestBehavior.translucent,
-              onPointerUp: (event) {
-                // 手指离开屏幕时，延迟隐藏信息面板
-                // 使用延迟避免与图表内部事件冲突
+              onPointerUp: (_) {
+                // 手指离开后延迟隐藏信息面板，避免与图表内部事件冲突
                 Future.delayed(const Duration(milliseconds: 100), () {
                   if (mounted && _isCrosshairVisible) {
                     setState(() {
@@ -145,8 +208,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                   }
                 });
               },
-              onPointerCancel: (event) {
-                // 手势取消时也隐藏
+              onPointerCancel: (_) {
                 if (mounted && _isCrosshairVisible) {
                   setState(() {
                     _isCrosshairVisible = false;
@@ -157,9 +219,10 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
               child: Stack(
                 children: [
                   _buildCandlestickChart(),
-                  // 固定在左上角的信息面板（带淡入淡出动画）
                   AnimatedOpacity(
-                    opacity: (_isCrosshairVisible && _selectedData != null) ? 1.0 : 0.0,
+                    opacity: (_isCrosshairVisible && _selectedData != null)
+                        ? 1.0
+                        : 0.0,
                     duration: const Duration(milliseconds: 150),
                     child: _isCrosshairVisible && _selectedData != null
                         ? _buildCrosshairInfoPanel()
@@ -170,7 +233,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
             ),
           ),
 
-          // Volume Chart
+          // —— 成交量图
           Expanded(flex: 1, child: _buildVolumeChart()),
         ],
       ),
@@ -267,64 +330,44 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       plotAreaBorderWidth: 0,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
 
-      // Enable zoom and pan
-      zoomPanBehavior: _zoomPanBehavior,
-      trackballBehavior: _trackballBehavior,
-      crosshairBehavior: _crosshairBehavior,
-      onTrackballPositionChanging: _onTrackballPositionChanging,
-      onCrosshairPositionChanging: (CrosshairRenderArgs args) {
-        // Crosshair 和 Trackball 联动
-      },
-
-      // Primary X Axis (DateTime)
-      primaryXAxis: DateTimeAxis(
-        majorGridLines: MajorGridLines(
-          color: Colors.grey.withValues(alpha: 0.1),
-          width: 1,
-        ),
-        axisLine: const AxisLine(width: 0),
-        labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
-        dateFormat: DateFormat('MM/dd HH:mm'),
-        intervalType: DateTimeIntervalType.auto,
-      ),
-
-      // Primary Y Axis (Price)
+      // 行为
+      primaryXAxis: _priceXAxis,
       primaryYAxis: NumericAxis(
+        labelPosition: ChartDataLabelPosition.inside,
         opposedPosition: true,
         majorGridLines: MajorGridLines(
           color: Colors.grey.withValues(alpha: 0.1),
           width: 1,
         ),
+        interactiveTooltip: const InteractiveTooltip(enable: true),
         axisLine: const AxisLine(width: 0),
         labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
         numberFormat: NumberFormat.currency(symbol: '\$', decimalDigits: 2),
       ),
+      zoomPanBehavior: _priceZoom,
+      trackballBehavior: _trackballBehavior,
+      crosshairBehavior: _crosshairBehavior,
 
-      // Candlestick Series
+      // 同步回调
+      onZooming: _onPriceZooming,
+      onTrackballPositionChanging: _onTrackballPositionChanging,
+
+      // Candle
       series: <CartesianSeries>[
         CandleSeries<CandlestickData, DateTime>(
           dataSource: widget.data,
-          xValueMapper: (CandlestickData data, _) => data.date,
-          lowValueMapper: (CandlestickData data, _) => data.low,
-          highValueMapper: (CandlestickData data, _) => data.high,
-          openValueMapper: (CandlestickData data, _) => data.open,
-          closeValueMapper: (CandlestickData data, _) => data.close,
-
-          // Styling
-          bearColor: const Color(0xFFEF5350), // Red for bearish
-          bullColor: const Color(0xFF26A69A), // Green for bullish
-          // 禁用 series tooltip，只使用左上角固定面板
+          xValueMapper: (d, _) => d.date,
+          lowValueMapper: (d, _) => d.low,
+          highValueMapper: (d, _) => d.high,
+          openValueMapper: (d, _) => d.open,
+          closeValueMapper: (d, _) => d.close,
+          bearColor: const Color(0xFFEF5350),
+          bullColor: const Color(0xFF26A69A),
           enableTooltip: false,
-
-          // Smooth rendering
-          animationDuration: 1000,
+          animationDuration: 800,
         ),
       ],
-
-      // 禁用 tooltip behavior
-      tooltipBehavior: TooltipBehavior(
-        enable: false,
-      ),
+      tooltipBehavior: TooltipBehavior(enable: false),
     );
   }
 
@@ -334,11 +377,9 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
       plotAreaBorderWidth: 0,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
 
-      // Primary X Axis (DateTime)
-      primaryXAxis: DateTimeAxis(isVisible: false),
-
-      // Primary Y Axis (Volume)
+      primaryXAxis: _volXAxis,
       primaryYAxis: NumericAxis(
+        isVisible: false,
         opposedPosition: true,
         majorGridLines: const MajorGridLines(width: 0),
         axisLine: const AxisLine(width: 0),
@@ -346,18 +387,17 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
         numberFormat: NumberFormat.compact(),
       ),
 
-      // Volume Series
+      zoomPanBehavior: _volZoom,
+      onZooming: _onVolZooming,
+
       series: <CartesianSeries>[
         ColumnSeries<CandlestickData, DateTime>(
           dataSource: widget.data,
-          xValueMapper: (CandlestickData data, _) => data.date,
-          yValueMapper: (CandlestickData data, _) => data.volume,
-
-          // Color based on bullish/bearish
-          pointColorMapper: (CandlestickData data, _) => data.isBullish
+          xValueMapper: (d, _) => d.date,
+          yValueMapper: (d, _) => d.volume,
+          pointColorMapper: (d, _) => d.isBullish
               ? const Color(0xFF26A69A).withValues(alpha: 0.5)
               : const Color(0xFFEF5350).withValues(alpha: 0.5),
-
           borderRadius: BorderRadius.circular(2),
           spacing: 0.1,
         ),
@@ -365,7 +405,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     );
   }
 
-  // 构建固定在左上角的信息面板
+  // —— 左上角信息面板
   Widget _buildCrosshairInfoPanel() {
     if (_selectedData == null) return const SizedBox.shrink();
 
@@ -383,7 +423,10 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           decoration: BoxDecoration(
             color: const Color(0xFF1E1E1E).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
+            border: Border.all(
+              color: Colors.grey.withValues(alpha: 0.2),
+              width: 0.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.2),
@@ -396,7 +439,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 时间
               Text(
                 dateFormat.format(_selectedData!.date),
                 style: const TextStyle(
@@ -406,14 +448,14 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                 ),
               ),
               const SizedBox(height: 3),
-
-              // OHLC 数据
               _buildInfoRow('O', _selectedData!.open, Colors.grey),
               _buildInfoRow('H', _selectedData!.high, Colors.green),
               _buildInfoRow('L', _selectedData!.low, Colors.red),
-              _buildInfoRow('C', _selectedData!.close, isPositive ? Colors.green : Colors.red),
-
-              // 涨跌幅
+              _buildInfoRow(
+                'C',
+                _selectedData!.close,
+                isPositive ? Colors.green : Colors.red,
+              ),
               const SizedBox(height: 2),
               Container(
                 height: 0.5,
@@ -421,7 +463,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                 color: Colors.grey.withValues(alpha: 0.3),
               ),
               const SizedBox(height: 2),
-
               Text(
                 '${isPositive ? '+' : ''}${changePercent.toStringAsFixed(2)}%',
                 style: TextStyle(
@@ -437,7 +478,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     );
   }
 
-  // 构建信息行
   Widget _buildInfoRow(String label, double value, Color color) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 1),
@@ -446,10 +486,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
         children: [
           Text(
             '$label ',
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 8,
-            ),
+            style: const TextStyle(color: Colors.grey, fontSize: 8),
           ),
           Text(
             '\$${value.toStringAsFixed(2)}',
