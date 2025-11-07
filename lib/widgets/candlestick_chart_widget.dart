@@ -34,6 +34,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   // X 轴（必须持有轴实例，便于编程式缩放）
   final DateTimeAxis _priceXAxis = DateTimeAxis(
     name: 'x',
+    isVisible: false,
     majorGridLines: MajorGridLines(
       color: Colors.grey /*.withOpacity(0.1)*/ .withValues(alpha: 0.1),
       width: 1,
@@ -46,9 +47,13 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
 
   final DateTimeAxis _volXAxis = DateTimeAxis(
     name: 'x',
-    isVisible: false,
+    isVisible: true,
     dateFormat: DateFormat('MM/dd HH:mm'),
     intervalType: DateTimeIntervalType.auto,
+    majorGridLines: const MajorGridLines(width: 0), // ← 关闭竖向主网格线
+    minorGridLines: const MinorGridLines(width: 0), // ← 保险：关闭竖向次网格线
+    majorTickLines: const MajorTickLines(width: 0, size: 0),
+    axisLine: const AxisLine(width: 0),
   );
 
   // 十字/轨迹
@@ -149,8 +154,9 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
 
   // —— 程序化显示/隐藏（在像素坐标处）
   void _showAt(Offset p) {
-    _trackballBehavior.show(p.dx, p.dy);
-    _crosshairBehavior.show(p.dx, p.dy);
+    // 使用 'pixel' 参数指定坐标单位为像素
+    _trackballBehavior.show(p.dx, p.dy, 'pixel');
+    _crosshairBehavior.show(p.dx, p.dy, 'pixel');
     _isPinned = true;
   }
 
@@ -215,14 +221,6 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
         _showAt(args.position);
       }
     }
-    _isPointerDown = false;
-    _longPressActive = false;
-    _downPos = null;
-    _downAt = null;
-  }
-
-  void _onCancel(ChartTouchInteractionArgs args) {
-    _longPressTimer?.cancel();
     _isPointerDown = false;
     _longPressActive = false;
     _downPos = null;
