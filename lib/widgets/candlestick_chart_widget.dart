@@ -45,6 +45,26 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
     intervalType: DateTimeIntervalType.auto,
   );
 
+  // ===== 主图：Y 轴（横向网格线） =====
+  final NumericAxis _priceYAxis = NumericAxis(
+    labelPosition: ChartDataLabelPosition.inside,
+    opposedPosition: true,
+    // 横向“主”网格线
+    majorGridLines: MajorGridLines(
+      width: 0.8,
+      color: Colors.white.withValues(alpha: 0.06),
+    ),
+    // 横向“次”网格线
+    minorGridLines: MinorGridLines(
+      width: 0.5,
+      color: Colors.white.withValues(alpha: 0.03),
+    ),
+    minorTicksPerInterval: 1, // 每个主间隔再加 1 条细线（按需调整）
+    axisLine: const AxisLine(width: 0),
+    labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+    numberFormat: NumberFormat.currency(symbol: '\$', decimalDigits: 2),
+  );
+
   final DateTimeAxis _volXAxis = DateTimeAxis(
     name: 'x',
     isVisible: true,
@@ -314,18 +334,8 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
 
       // 行为
       primaryXAxis: _priceXAxis,
-      primaryYAxis: NumericAxis(
-        labelPosition: ChartDataLabelPosition.inside,
-        opposedPosition: true,
-        majorGridLines: MajorGridLines(
-          color: Colors.grey.withValues(alpha: 0.1),
-          width: 1,
-        ),
-        interactiveTooltip: const InteractiveTooltip(enable: true),
-        axisLine: const AxisLine(width: 0),
-        labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
-        numberFormat: NumberFormat.currency(symbol: '\$', decimalDigits: 2),
-      ),
+
+      primaryYAxis: _priceYAxis,
       zoomPanBehavior: _priceZoom,
       trackballBehavior: _trackballBehavior,
       crosshairBehavior: _crosshairBehavior,
@@ -344,8 +354,11 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
           closeValueMapper: (d, _) => d.close,
           bearColor: const Color(0xFFEF5350),
           bullColor: const Color(0xFF26A69A),
+          enableSolidCandles: true, // 启用实心蜡烛
           enableTooltip: false,
           animationDuration: 800,
+          spacing: 0.01,
+          width: 0.9,
         ),
       ],
       tooltipBehavior: TooltipBehavior(enable: false),
@@ -378,7 +391,8 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
               ? const Color(0xFF26A69A).withValues(alpha: 0.5)
               : const Color(0xFFEF5350).withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(2),
-          spacing: 0.1,
+          spacing: 0.01,
+          width: 0.9,
         ),
       ],
     );
